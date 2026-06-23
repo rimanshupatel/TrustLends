@@ -16,7 +16,18 @@ import AdminPanelPage from '@/app/admin/page';
 
 // Route Guard - Must be signed in
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold text-slate-500">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (!isLoggedIn) {
     return <Navigate to="/auth/signin" replace />;
@@ -26,7 +37,18 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 // Route Guard - Must be signed in + KYC level 1 complete (wallet linked)
 function RequireKyc({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, kycLevel } = useAuth();
+  const { isLoggedIn, kycLevel, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold text-slate-500">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return <Navigate to="/auth/signin" replace />;

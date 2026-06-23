@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { LogOut } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
@@ -9,7 +10,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
   const { isLoggedIn } = useAuth();
-  const { isConnected, walletAddress } = useWallet();
+  const { isConnected, walletAddress, disconnectWallet } = useWallet();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -83,6 +84,14 @@ export default function Navbar() {
                 <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 <span>{truncateWallet(walletAddress)}</span>
               </div>
+              {/* Disconnect button */}
+              <button
+                onClick={disconnectWallet}
+                title="Disconnect Wallet"
+                className="p-1.5 border border-slate-200 hover:bg-red-50 hover:text-danger rounded-xl transition-all duration-150 text-text-muted"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
               <Link
                 to="/dashboard"
                 className="px-5 py-2.5 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-sm hover:shadow-md transition-all duration-150"

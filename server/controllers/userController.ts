@@ -23,10 +23,20 @@ export const createOrUpdateUser = async (req: Request, res: Response) => {
 
     let user = await User.findOne({ walletAddress });
     if (!user) {
+      // Derive a name from email if name is not provided
+      let derivedName = 'New User';
+      if (email) {
+        const localPart = email.split('@')[0];
+        derivedName = localPart
+          .split(/[\._-]/)
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' ');
+      }
+
       // Create new user profile
       user = new User({
         walletAddress,
-        name: name || 'New User',
+        name: name || derivedName,
         email: email || '',
         trustScore: 500, // starting score
         kycLevel: 1, // linked wallet means kyc level 1
@@ -41,6 +51,20 @@ export const createOrUpdateUser = async (req: Request, res: Response) => {
         nextPaymentAmount: 0
       });
       await user.save();
+    } else {
+      // Update name and email if provided in the body
+      let updated = false;
+      if (name && name !== user.name) {
+        user.name = name;
+        updated = true;
+      }
+      if (email && email !== user.email) {
+        user.email = email;
+        updated = true;
+      }
+      if (updated) {
+        await user.save();
+      }
     }
     res.json(user);
   } catch (error: any) {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import {
   checkFreighterInstalled,
   getConnectedWalletAddress,
@@ -26,6 +27,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const { logout } = useAuth();
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [xlmBalance, setXlmBalance] = useState<string | null>(null);
@@ -97,14 +99,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setIsConnected(true);
 
       // Fetch or Create user profile in MongoDB Atlas
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : 'http://localhost:5000/api');
       const userRes = await fetch(`${apiBase}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          walletAddress: address,
-          name: "Arjun Sharma", // Default seed/mock name
-          email: "arjun@stellar.org"
+          walletAddress: address
         })
       });
       const userData = await userRes.json();
@@ -140,6 +140,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('trustlend_kyc_level', '0');
       }
     }
+    logout();
   };
 
   const [isSendModalOpen, setSendModalOpen] = useState<boolean>(false);

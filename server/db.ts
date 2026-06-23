@@ -9,12 +9,12 @@ import Guarantor from './models/Guarantor';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/trustlend';
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017/trustlend';
 
 export const connectDB = async (): Promise<void> => {
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('MongoDB connected successfully.');
+    const conn = await mongoose.connect(MONGODB_URI);
+    console.log(`MongoDB connected successfully: ${conn.connection.host}/${conn.connection.name}`);
     
     // Seed initial data if empty
     await seedDatabase();

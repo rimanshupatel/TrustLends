@@ -22,7 +22,7 @@ import { userProfile } from "@/lib/mock-data";
 export default function Sidebar() {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
-  const { walletAddress } = useWallet();
+  const { walletAddress, disconnectWallet } = useWallet();
   const [activeGuaranteesCount, setActiveGuaranteesCount] = useState(0);
 
   // Sync active guarantees count
@@ -59,6 +59,11 @@ export default function Sidebar() {
 
   const displayName = user?.name || userProfile.name;
   const displayWallet = walletAddress || userProfile.walletAddress;
+
+  const handleSignOut = () => {
+    disconnectWallet();
+    logout();
+  };
 
   return (
     <aside className="fixed top-0 left-0 h-screen bg-white border-r border-borderCustom flex flex-col z-40 transition-all duration-300 w-16 xl:w-60">
@@ -127,7 +132,7 @@ export default function Sidebar() {
         
         {/* Sign Out Button */}
         <button
-          onClick={logout}
+          onClick={handleSignOut}
           title="Sign Out"
           className="p-1.5 hover:bg-red-50 hover:text-danger rounded-lg transition-colors text-text-muted"
         >
