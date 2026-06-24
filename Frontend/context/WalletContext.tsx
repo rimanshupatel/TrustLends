@@ -14,6 +14,7 @@ interface WalletContextType {
   isConnected: boolean;
   xlmBalance: string | null;
   error: string | null;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
   isConnecting: boolean;
   isFunding: boolean;
   isSendModalOpen: boolean;
@@ -193,6 +194,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isConnected,
       xlmBalance,
       error,
+      setError,
       isConnecting,
       isFunding,
       isSendModalOpen,

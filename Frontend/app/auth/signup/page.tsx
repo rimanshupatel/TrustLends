@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
 import WalletConnect from "@/components/ui/WalletConnect";
 import { ArrowRight, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
 export default function SignupPage() {
   const { signup } = useAuth();
+  const { walletAddress, isConnected } = useWallet();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +26,7 @@ export default function SignupPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      await signup(name, email);
+      await signup(name, email, password);
     } catch (err: any) {
       setError(err.message || "Failed to create account.");
     } finally {
@@ -47,6 +49,21 @@ export default function SignupPage() {
           <p className="text-xs text-text-muted font-medium pt-1">
             Create your decentralized AI-powered credit profile
           </p>
+        </div>
+
+        {/* Wallet Connection Status Badge */}
+        <div className="flex justify-center -mt-2">
+          {isConnected && walletAddress ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-emerald-250 bg-emerald-50 text-success rounded-full text-xs font-semibold select-none shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="font-mono">{`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-red-200 bg-red-50 text-danger rounded-full text-xs font-semibold select-none shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-danger" />
+              <span>No wallet connected</span>
+            </div>
+          )}
         </div>
 
         {/* Error Message */}

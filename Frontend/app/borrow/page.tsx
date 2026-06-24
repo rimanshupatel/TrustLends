@@ -25,13 +25,15 @@ import { userProfile, loanHistory } from "@/lib/mock-data";
 import GuarantorRequest from "@/components/guarantor/GuarantorRequest";
 import { useWallet } from "@/context/WalletContext";
 import { useUser, useActiveLoan, useTransactions } from "@/hooks/useApi";
-
+import { callCreateEscrow, callReleaseFunds, callRefundFunds } from "@/lib/contract";
+import { sendXLMPayment } from "@/lib/stellar";
 export default function BorrowPage() {
   const { walletAddress } = useWallet();
   const { user: liveUser, refreshUser } = useUser(walletAddress);
   const { activeLoan: liveLoan, requestLoan: apiRequestLoan } = useActiveLoan(walletAddress);
   const { transactions: liveTxs, refreshTransactions } = useTransactions(walletAddress);
-
+  const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "failed">("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
   // Live form states
   const [loanAmount, setLoanAmount] = useState(15000);
   const [duration, setDuration] = useState(6); // 1, 3, 6, 12 months
@@ -85,45 +87,74 @@ export default function BorrowPage() {
   const isWithinCreditLimit = loanAmount <= displayCreditLimit;
 
   // Handle request submission
-  const handleSubmit = (e: React.FormEvent) => {
+  // Replace handleSubmit:
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!walletAddress) {
+      alert("Please connect your wallet first.");
+      return;
+    }
     if (!isWithinCreditLimit) {
-      alert(`Requested amount ₹${loanAmount.toLocaleString()} exceeds your active credit limit of ₹${displayCreditLimit.toLocaleString()}.`);
+      alert(`Amount exceeds credit limit.`);
       return;
     }
-
     if (!hasSufficientScore) {
-      alert(`Trust Score ${displayTrustScore} is insufficient for this tier. Required: ${trustScoreRequired}`);
+      alert(`Trust Score insufficient. Required: ${trustScoreRequired}`);
       return;
     }
 
-    if (liveUser) {
-      apiRequestLoan({
-        amount: loanAmount,
-        purpose,
-        duration,
-        interestRate: netApy
-      }).then(() => {
+    setTxStatus("pending");
+
+    try {
+      const xlmAmount = (loanAmount / 7).toFixed(7);
+
+      // Step 1: Borrower sends small collateral/fee to pool as loan request signal
+      const { sendXLMPayment } = await import("@/lib/stellar");
+      const paymentHash = await sendXLMPayment(
+        walletAddress,                                          // from borrower
+        import.meta.env.VITE_POOL_TREASURY_ADDRESS,            // to pool
+        (parseFloat(xlmAmount) * 0.01).toFixed(7),            // 1% processing fee only
+        `loan-request-${purpose}`
+      );
+
+      // Step 2: Register escrow on chain
+      const escrowHash = await callCreateEscrow(
+        walletAddress,
+        import.meta.env.VITE_POOL_TREASURY_ADDRESS,
+        xlmAmount
+      );
+
+      setTxHash(escrowHash);
+      setTxStatus("success");
+
+      // Step 3: Save to DB
+      if (liveUser) {
+        await apiRequestLoan({
+          amount: loanAmount,
+          purpose,
+          duration,
+          interestRate: netApy,
+          txHash: escrowHash
+        });
         refreshUser();
         refreshTransactions();
-        alert(`Success! Loan request submitted. ₹${loanAmount.toLocaleString()} has been auto-approved and queued for disbursement to wallet ${walletAddress ? walletAddress.slice(0, 6) : ""}...`);
-      }).catch((err) => {
-        alert("Loan request failed: " + err.message);
-      });
-    } else {
-      const newRequest = {
-        id: `LN-${Math.floor(1000 + Math.random() * 9000)}`,
-        amount: `₹${loanAmount.toLocaleString()}`,
-        purpose,
-        rate: `${netApy.toFixed(1)}% APY`,
-        status: "Approved ⚡",
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        duration: `${duration} Months`,
-      };
+      } else {
+        const newRequest = {
+          id: `LN-${Math.floor(1000 + Math.random() * 9000)}`,
+          amount: `₹${loanAmount.toLocaleString()}`,
+          purpose,
+          rate: `${netApy.toFixed(1)}% APY`,
+          status: "Approved ⚡",
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          duration: `${duration} Months`,
+        };
+        setRequestsList([newRequest, ...requestsList]);
+      }
 
-      setRequestsList([newRequest, ...requestsList]);
-      alert(`Success! Loan request submitted. ₹${loanAmount.toLocaleString()} has been auto-approved and queued for disbursement to wallet ${userProfile.walletAddress.slice(0, 6)}...`);
+    } catch (err: any) {
+      setTxStatus("failed");
+      console.error("Loan submit error:", err);
     }
   };
 
@@ -148,7 +179,7 @@ export default function BorrowPage() {
       <Sidebar />
 
       <main className="flex-1 pl-16 xl:pl-60 min-h-screen flex flex-col transition-all duration-300">
-        
+
         {/* Top Header Bar */}
         <header className="h-16 bg-white border-b border-borderCustom px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2">
@@ -169,9 +200,9 @@ export default function BorrowPage() {
 
         {/* Page Content */}
         <div className="p-6 md:p-8 space-y-8 max-w-7xl w-full mx-auto">
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* Left side form */}
             <div className="lg:col-span-7 bg-white border border-cardBorder rounded-xl p-6 shadow-sm space-y-6">
               <div>
@@ -180,7 +211,7 @@ export default function BorrowPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                
+
                 {/* Amount Slider */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -218,11 +249,10 @@ export default function BorrowPage() {
                         type="button"
                         key={m}
                         onClick={() => setDuration(m)}
-                        className={`py-3 text-xs font-semibold rounded-xl border transition-all ${
-                          duration === m
-                            ? "bg-primary border-primary text-white shadow-sm"
-                            : "bg-white border-borderCustom text-text-secondary hover:bg-slate-50"
-                        }`}
+                        className={`py-3 text-xs font-semibold rounded-xl border transition-all ${duration === m
+                          ? "bg-primary border-primary text-white shadow-sm"
+                          : "bg-white border-borderCustom text-text-secondary hover:bg-slate-50"
+                          }`}
                       >
                         {m === 1 ? "1 Month" : `${m} Months`}
                       </button>
@@ -232,7 +262,7 @@ export default function BorrowPage() {
 
                 {/* Purpose and Guarantor split */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  
+
                   {/* Purpose Selector */}
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-text-secondary block" htmlFor="purpose-select">Loan Purpose</label>
@@ -255,10 +285,10 @@ export default function BorrowPage() {
                     <label className="text-xs font-semibold text-text-secondary block">
                       Social Guarantor Verification
                     </label>
-                    <GuarantorRequest 
+                    <GuarantorRequest
                       onSuccess={(name, amount) => {
                         setSelectedGuarantor(name);
-                      }} 
+                      }}
                     />
                   </div>
 
@@ -300,7 +330,22 @@ export default function BorrowPage() {
                     </div>
                   </div>
                 </div>
-
+                {txStatus === "pending" && (
+                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-warning font-medium flex items-center gap-2">
+                    <span className="animate-spin">⏳</span> Processing on Stellar blockchain...
+                  </div>
+                )}
+                {txStatus === "success" && txHash && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-success font-medium">
+                    ✅ Loan approved and disbursed!{" "}
+                    <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" className="underline font-bold">View tx ↗</a>
+                  </div>
+                )}
+                {txStatus === "failed" && (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-danger font-medium">
+                    ❌ Trust score too low or transaction failed. Loan rejected.
+                  </div>
+                )}
                 {/* Submit button */}
                 <button
                   type="submit"
@@ -319,7 +364,7 @@ export default function BorrowPage() {
 
             {/* Right side check panel */}
             <div className="lg:col-span-5 bg-white border border-cardBorder rounded-xl p-6 shadow-sm space-y-6">
-              
+
               <div className="text-center flex flex-col items-center pb-4 border-b border-borderCustom">
                 <div className="relative w-32 h-32 flex items-center justify-center">
                   <svg className="absolute inset-0 w-full h-full transform -rotate-90">
@@ -342,9 +387,9 @@ export default function BorrowPage() {
               {/* Eligibility Checklist */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Eligibility Checklist</h3>
-                
+
                 <div className="space-y-3 text-xs text-text-secondary font-medium">
-                  
+
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-success text-[10px]">✓</span>

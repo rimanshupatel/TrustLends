@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ShieldCheck,
   DollarSign,
@@ -19,9 +19,20 @@ import TrustScoreRing from "@/components/ui/TrustScoreRing";
 import ProgressBar from "@/components/ui/ProgressBar";
 
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
 
 export default function LandingPage() {
   const { isLoggedIn } = useAuth();
+  const { isConnected, walletAddress } = useWallet();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [showWalletAlert, setShowWalletAlert] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.message) {
+      setShowWalletAlert(true);
+    }
+  }, [location.state]);
   // Metric counts animation values
   const [disbursed, setDisbursed] = useState(0);
   const [borrowers, setBorrowers] = useState(0);
@@ -68,6 +79,26 @@ export default function LandingPage() {
 
   const yieldResult = getEstimatedYield();
 
+  const handleStartBorrowing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isConnected || !walletAddress) {
+      setShowWalletAlert(true);
+      return;
+    }
+    setShowWalletAlert(false);
+    navigate(isLoggedIn ? "/borrow" : "/auth/signup");
+  };
+
+  const handleEarnAsLender = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isConnected || !walletAddress) {
+      setShowWalletAlert(true);
+      return;
+    }
+    setShowWalletAlert(false);
+    navigate(isLoggedIn ? "/lend" : "/auth/signup");
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
       <Navbar />
@@ -92,20 +123,27 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <Link
-              to={isLoggedIn ? "/borrow" : "/auth/signup"}
+            <button
+              onClick={handleStartBorrowing}
               className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white font-semibold rounded-xl text-center shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <span>Start Borrowing</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to={isLoggedIn ? "/lend" : "/auth/signup"}
+            </button>
+            <button
+              onClick={handleEarnAsLender}
               className="w-full sm:w-auto px-7 py-3.5 bg-white border-2 border-primary text-primary hover:bg-primary-light font-semibold rounded-xl text-center transition-all"
             >
               Earn as Lender
-            </Link>
+            </button>
           </div>
+
+          {showWalletAlert && (
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-danger font-medium flex items-center gap-1.5 max-w-sm mt-3 animate-fade-in">
+              <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+              <span>Please connect your wallet first.</span>
+            </div>
+          )}
 
           {/* Mini Trust Badges */}
           <div className="flex flex-wrap items-center gap-6 pt-2 text-sm text-text-secondary font-medium">

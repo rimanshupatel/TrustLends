@@ -400,16 +400,16 @@ export function useAdmin() {
     fetchAdminData();
   }, [fetchAdminData]);
 
-  return { 
-    stats, 
-    users, 
-    queue, 
-    fraud, 
-    loading, 
-    error, 
-    refreshAdminData: fetchAdminData, 
-    setQueue, 
-    setUsers 
+  return {
+    stats,
+    users,
+    queue,
+    fraud,
+    loading,
+    error,
+    refreshAdminData: fetchAdminData,
+    setQueue,
+    setUsers
   };
 }
 

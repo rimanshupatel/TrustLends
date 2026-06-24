@@ -4,6 +4,7 @@ export interface IUser extends Document {
   walletAddress: string;
   name: string;
   email?: string;
+  password?: string;
   trustScore: number;
   kycLevel: number;
   walletAge: string;
@@ -21,6 +22,7 @@ const UserSchema: Schema = new Schema({
   walletAddress: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true },
   email: { type: String },
+  password: { type: String },
   trustScore: { type: Number, default: 500 },
   kycLevel: { type: Number, default: 0 },
   walletAge: { type: String, default: "0.0 yrs" },

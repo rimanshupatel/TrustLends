@@ -16,10 +16,10 @@ import {
   requestLoan,
   repayLoan
 } from './controllers/loanController';
-import {
   getLendPositions,
   createLendPosition,
-  withdrawLendPosition
+  withdrawLendPosition,
+  getLendStats
 } from './controllers/lendController';
 import {
   getEndorsements,
@@ -53,6 +53,7 @@ router.post('/loans/request', requestLoan);
 router.post('/loans/repay', repayLoan);
 
 // Lend Routes
+router.get('/lend/stats', getLendStats);
 router.get('/lend/positions/:walletAddress', getLendPositions);
 router.post('/lend/positions', createLendPosition);
 router.post('/lend/positions/withdraw', withdrawLendPosition);

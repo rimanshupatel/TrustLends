@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './db';
 import apiRouter from './routes';
+import authRouter from './routes/auth';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api', apiRouter);
 
 // Healthcheck Route

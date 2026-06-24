@@ -31,7 +31,7 @@ import KYCLevelBadge from "@/components/ui/KYCLevelBadge";
 import NotificationBell from "@/components/ui/NotificationBell";
 import SendTransaction from "@/components/ui/SendTransaction";
 import GuarantorLockCard, { LockedGuaranteeItem } from "@/components/guarantor/GuarantorLockCard";
-
+import { callReleaseFunds } from "@/lib/contract";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
 
@@ -53,15 +53,16 @@ const DEFAULT_LOCKED_GUARANTEES: LockedGuaranteeItem[] = [
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { 
-    walletAddress, 
-    isConnected, 
-    xlmBalance, 
-    error, 
+  const {
+    walletAddress,
+    isConnected,
+    xlmBalance,
+    error,
     isFunding,
     fundAccount,
     isSendModalOpen,
-    setSendModalOpen 
+    setSendModalOpen,
+    connectWallet
   } = useWallet();
 
   const [activeLoanState, setActiveLoanState] = useState<any>(initialActiveLoan);
@@ -109,45 +110,46 @@ export default function Dashboard() {
   };
 
   // Handle simulated loan payment
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (paymentAmount <= 0) return;
 
-    if (liveUser) {
-      apiRepayLoan({ amount: paymentAmount }).then((res) => {
-        setActiveLoanState(res.loan);
+    try {
+      if (liveUser) {
+        const res = await apiRepayLoan({ amount: paymentAmount });
+
+        // res is the full response: { loan: {...}, message: "..." }
+        // useApi already sets activeLoan to res.loan internally
+        // so just refresh and close
+
         refreshTransactions();
         refreshUser();
         setIsPayModalOpen(false);
-        alert(`Success! Repayment of ₹${paymentAmount.toLocaleString()} completed via Stellar ZK-Proof.`);
-      }).catch((err) => {
-        alert("Repayment failed: " + err.message);
-      });
-    } else {
-      const remaining = Math.max((activeLoanState?.remaining || 0) - paymentAmount, 0);
-      const repaid = (activeLoanState?.repaid || 0) + paymentAmount;
-      const progress = Math.round((repaid / (activeLoanState?.amount || 1)) * 100);
+        alert(`✅ Repayment of ₹${paymentAmount.toLocaleString()} completed!`);
 
-      setActiveLoanState({
-        ...activeLoanState,
-        repaid,
-        remaining,
-        progress,
-      });
+      } else {
+        // Fallback mock when no live user
+        const remaining = Math.max((activeLoanState?.remaining || 0) - paymentAmount, 0);
+        const repaid = (activeLoanState?.repaid || 0) + paymentAmount;
+        const progress = Math.round((repaid / (activeLoanState?.amount || 1)) * 100);
 
-      // Add new mock transaction
-      const newTx = {
-        id: `TX-${Math.floor(1000 + Math.random() * 9000)}`,
-        type: "Loan repayment (Simulated)",
-        amount: `₹${paymentAmount.toLocaleString()}`,
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        status: "Completed" as const,
-        impact: "+3 pts",
-      };
+        setActiveLoanState({ ...activeLoanState, repaid, remaining, progress });
 
-      setTxs([newTx, ...txs]);
-      setIsPayModalOpen(false);
-      alert(`Success! Repayment of ₹${paymentAmount.toLocaleString()} completed via Stellar ZK-Proof.`);
+        const newTx = {
+          id: `TX-${Math.floor(1000 + Math.random() * 9000)}`,
+          type: "Loan repayment (Simulated)",
+          amount: `₹${paymentAmount.toLocaleString()}`,
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          status: "Completed" as const,
+          impact: "+3 pts",
+        };
+
+        setTxs([newTx, ...txs]);
+        setIsPayModalOpen(false);
+        alert(`✅ Repayment of ₹${paymentAmount.toLocaleString()} completed!`);
+      }
+    } catch (err: any) {
+      alert("Repayment failed: " + (err.message || "Unknown error"));
     }
   };
 
@@ -190,7 +192,7 @@ export default function Dashboard() {
 
       {/* Main Content Area */}
       <main className="flex-1 pl-16 xl:pl-60 min-h-screen flex flex-col transition-all duration-300">
-        
+
         {/* Top Header Bar */}
         <header className="h-16 bg-white border-b border-borderCustom px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2">
@@ -203,10 +205,20 @@ export default function Dashboard() {
             <NotificationBell />
 
             {/* Wallet Info Chip */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 border border-borderCustom bg-slate-50 rounded-xl font-mono text-xs text-text-secondary select-none">
-              <Wallet className="w-3.5 h-3.5 text-text-muted" />
-              <span>{truncateWallet(displayWallet)}</span>
-            </div>
+            {isConnected && walletAddress ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 border border-emerald-250 bg-emerald-50 text-success rounded-xl font-mono text-xs font-semibold select-none shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                <span>{truncateWallet(walletAddress)}</span>
+              </div>
+            ) : (
+              <button
+                onClick={connectWallet}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 bg-red-50 hover:bg-red-100 text-danger rounded-xl text-xs font-semibold shadow-sm transition-all"
+              >
+                <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+                <span>Connect</span>
+              </button>
+            )}
 
             {/* User Avatar */}
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-accent text-white flex items-center justify-center font-mono text-sm font-semibold shadow-sm">
@@ -217,10 +229,29 @@ export default function Dashboard() {
 
         {/* Dashboard Content Container */}
         <div className="p-6 md:p-8 space-y-8 max-w-7xl w-full mx-auto">
-          
+
+          {/* Warning Banner if wallet disconnected */}
+          {(!isConnected || !walletAddress) && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-fade-in">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-danger flex-shrink-0" />
+                <p className="text-xs text-danger font-medium">
+                  Wallet Disconnected. Please connect your Stellar wallet to view active credits and make transactions.
+                </p>
+              </div>
+              <button
+                onClick={connectWallet}
+                className="px-4 py-2 bg-danger hover:bg-danger/90 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md flex-shrink-0"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Connect Wallet</span>
+              </button>
+            </div>
+          )}
+
           {/* Hero: Trust Score Section */}
           <section className="bg-gradient-to-br from-primary-light via-white to-white border border-cardBorder rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-8 animate-fade-in">
-            
+
             {/* Left: Trust Score Ring */}
             <div className="flex-shrink-0">
               <TrustScoreRing score={displayTrustScore} size={220} />
@@ -238,13 +269,12 @@ export default function Dashboard() {
                     </div>
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${
-                          idx % 3 === 0
-                            ? "bg-primary"
-                            : idx % 3 === 1
+                        className={`h-full rounded-full ${idx % 3 === 0
+                          ? "bg-primary"
+                          : idx % 3 === 1
                             ? "bg-accent"
                             : "bg-success"
-                        }`}
+                          }`}
                         style={{ width: `${(item.score / item.max) * 100}%` }}
                       ></div>
                     </div>
@@ -280,7 +310,7 @@ export default function Dashboard() {
 
           {/* Stat Cards Row */}
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            
+
             {/* Card 1 — Wallet Balance (PRIMARY - largest visual emphasis) */}
             <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white border border-blue-700 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-200 flex flex-col justify-between h-[180px] group relative overflow-hidden">
               <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 bg-white/5 rounded-full blur-xl group-hover:scale-110 transition-transform duration-500" />
@@ -434,7 +464,7 @@ export default function Dashboard() {
 
           {/* Transactions & Sidebar Widgets Split */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
+
             {/* Recent Transactions Table */}
             <div className="lg:col-span-8 space-y-4">
               <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider">Recent Transactions</h3>
@@ -447,7 +477,7 @@ export default function Dashboard() {
 
             {/* Sidebar Widgets Stacked */}
             <div className="lg:col-span-8 lg:order-2 xl:col-span-4 space-y-6">
-              
+
               {/* Locked Guarantees Section */}
               <div className="bg-white border border-cardBorder rounded-xl p-5 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -459,14 +489,14 @@ export default function Dashboard() {
                     {lockedGuarantees.length} Active
                   </span>
                 </div>
-                
+
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   {lockedGuarantees.length > 0 ? (
                     lockedGuarantees.map((guarantee) => (
-                      <GuarantorLockCard 
-                        key={guarantee.id} 
-                        guarantee={guarantee} 
-                        onExitSuccess={handleExitGuarantee} 
+                      <GuarantorLockCard
+                        key={guarantee.id}
+                        guarantee={guarantee}
+                        onExitSuccess={handleExitGuarantee}
                       />
                     ))
                   ) : (

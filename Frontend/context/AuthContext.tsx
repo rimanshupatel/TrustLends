@@ -13,8 +13,8 @@ interface AuthContextType {
   isLoggedIn: boolean;
   kycLevel: number;
   loading: boolean;
-  login: (email: string, name?: string) => Promise<void>;
-  signup: (name: string, email: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
+  signup: (name: string, email: string, password?: string) => Promise<void>;
   logout: () => void;
   updateKycLevel: (level: number) => void;
 }
@@ -63,26 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (email: string, name?: string) => {
+  const login = async (email: string, password?: string) => {
     const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('trustlend_wallet') : null;
     
-    // If not connected, default to Arjun's seeded address as fallback for testing
-    const actualWallet = walletAddress || "GB7F3A8F92B7C52A019D384FE572B683E91122B29C";
+    if (!walletAddress) {
+      throw new Error("Please connect your Stellar Wallet first.");
+    }
 
     const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : 'http://localhost:5000/api');
     
-    const payload: any = {
-      walletAddress: actualWallet,
-      email
+    const payload = {
+      walletAddress,
+      email,
+      password: password || 'password123'
     };
 
-    if (email.toLowerCase().includes("arjun")) {
-      payload.name = "Arjun Sharma";
-    } else if (name) {
-      payload.name = name;
-    }
-
-    const response = await fetch(`${apiBase}/users`, {
+    const response = await fetch(`${apiBase.replace(/\/api$/, '')}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -93,7 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(errData.error || "Failed to log in.");
     }
 
-    const userData = await response.json();
+    const data = await response.json();
+    const userData = data.user;
+    const token = data.token;
     const finalKyc = userData.kycLevel !== undefined ? userData.kycLevel : 1;
 
     const userDataObj = { name: userData.name, email: userData.email };
@@ -103,11 +101,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     localStorage.setItem('trustlend_user', JSON.stringify(userDataObj));
     localStorage.setItem('trustlend_kyc_level', finalKyc.toString());
-    if (!walletAddress) {
-      localStorage.setItem('trustlend_wallet', actualWallet);
-    }
 
-    setCookie('auth_token', 'true');
+    setCookie('auth_token', token);
     setCookie('kyc_level', finalKyc.toString());
 
     if (finalKyc >= 1) {
@@ -117,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signup = async (name: string, email: string) => {
+  const signup = async (name: string, email: string, password?: string) => {
     const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('trustlend_wallet') : null;
     
     if (!walletAddress) {
@@ -126,10 +121,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : 'http://localhost:5000/api');
     
-    const response = await fetch(`${apiBase}/users`, {
+    const payload = {
+      walletAddress,
+      name,
+      email,
+      password: password || 'password123'
+    };
+
+    const response = await fetch(`${apiBase.replace(/\/api$/, '')}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ walletAddress, name, email })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -137,7 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(errData.error || "Failed to create user profile in database.");
     }
 
-    const userData = await response.json();
+    const data = await response.json();
+    const userData = data.user;
+    const token = data.token;
     const finalKyc = userData.kycLevel !== undefined ? userData.kycLevel : 1;
 
     const userDataObj = { name: userData.name, email: userData.email };
@@ -148,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('trustlend_user', JSON.stringify(userDataObj));
     localStorage.setItem('trustlend_kyc_level', finalKyc.toString());
 
-    setCookie('auth_token', 'true');
+    setCookie('auth_token', token);
     setCookie('kyc_level', finalKyc.toString());
 
     if (finalKyc >= 1) {

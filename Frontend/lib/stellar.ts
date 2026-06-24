@@ -121,12 +121,12 @@ export const sendXLMPayment = async (
 
     // Friendly error messaging
     const rawErrorString = error.toString().toLowerCase();
-    if (rawErrorString.includes("user declined")) {
-      throw new Error("Transaction declined by the user in Freighter.");
+    if (rawErrorString.includes("user declined") || rawErrorString.includes("user rejected")) {
+      throw new Error("Transaction cancelled by user.");
     } else if (rawErrorString.includes("unfunded")) {
       throw new Error("Recipient account does not exist. Must be funded first.");
-    } else if (rawErrorString.includes("op_underfunded")) {
-      throw new Error("Insufficient funds in your wallet to complete payment.");
+    } else if (rawErrorString.includes("op_underfunded") || rawErrorString.includes("insufficient")) {
+      throw new Error("Not enough XLM to complete this transaction.");
     } else if (rawErrorString.includes("op_no_destination")) {
       throw new Error("Destination account does not exist.");
     } else {

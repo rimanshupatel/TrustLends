@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
 import WalletConnect from "@/components/ui/WalletConnect";
 import { ArrowRight, LogIn, Mail, Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
 export default function SigninPage() {
   const { login } = useAuth();
+  const { walletAddress, isConnected } = useWallet();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,8 +25,7 @@ export default function SigninPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      // Mock log in
-      await login(email);
+      await login(email, password);
     } catch (err: any) {
       setError(err.message || "Failed to sign in.");
     } finally {
@@ -47,6 +48,21 @@ export default function SigninPage() {
           <p className="text-xs text-text-muted font-medium pt-1">
             Access your decentralized AI-powered credit profile
           </p>
+        </div>
+
+        {/* Wallet Connection Status Badge */}
+        <div className="flex justify-center -mt-2">
+          {isConnected && walletAddress ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-emerald-250 bg-emerald-50 text-success rounded-full text-xs font-semibold select-none shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="font-mono">{`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-red-200 bg-red-50 text-danger rounded-full text-xs font-semibold select-none shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-danger" />
+              <span>No wallet connected</span>
+            </div>
+          )}
         </div>
 
         {/* Error Message */}

@@ -25,12 +25,14 @@ import Tooltip from "@/components/ui/Tooltip";
 import { userProfile, lendMarket } from "@/lib/mock-data";
 import { useWallet } from "@/context/WalletContext";
 import { useUser, useLendPositions } from "@/hooks/useApi";
-
+import { callCreateEscrow } from "@/lib/contract";
+import { sendXLMPayment } from "@/lib/stellar";
 export default function LendPage() {
   const { walletAddress } = useWallet();
   const { user: liveUser } = useUser(walletAddress);
   const { positions: livePositions, createPosition, withdrawPosition } = useLendPositions(walletAddress);
-
+  const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "failed">("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState(2500);
   const [lockPeriod, setLockPeriod] = useState<"Flexible" | "3M" | "6M" | "12M">("6M");
   const [positions, setPositions] = useState<any[]>(lendMarket.activePositions);
@@ -56,33 +58,38 @@ export default function LendPage() {
   const estimatedAnnualEarnings = depositAmount * (apy / 100);
 
   // Handle deposit simulation
-  const handleDepositSubmit = (e: React.FormEvent) => {
+  const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!walletAddress) {
+      alert("Please connect your wallet first.");
+      return;
+    }
     if (depositAmount <= 0) return;
 
-    if (liveUser) {
-      createPosition({
-        amount: depositAmount,
-        lockPeriod: lockPeriod === "Flexible" ? "Flexible" : `${lockPeriod.replace("M", "")} Months`,
-        apy: apy
-      }).then(() => {
-        alert(`Success! Deposited $${depositAmount.toLocaleString()} into the lending pool at ${apy}% APY lock.`);
-      }).catch((err) => {
-        alert("Deposit failed: " + err.message);
-      });
-    } else {
-      const newPosition = {
-        id: `DP-${Math.floor(1000 + Math.random() * 9000)}`,
-        amount: `$${depositAmount.toLocaleString()}`,
-        lockPeriod: lockPeriod === "Flexible" ? "Flexible" : `${lockPeriod.replace("M", "")} Months`,
-        apy: `${apy}%`,
-        earned: "$0.00",
-        status: "Active",
-        action: "Withdraw"
-      };
+    setTxStatus("pending");
+    try {
+      const xlmAmount = (depositAmount / 7).toFixed(7);
 
-      setPositions([newPosition, ...positions]);
-      alert(`Success! Deposited $${depositAmount.toLocaleString()} into the lending pool at ${apy}% APY lock.`);
+      // Send XLM to pool treasury + register escrow
+      const hash = await callCreateEscrow(
+        walletAddress,
+        import.meta.env.VITE_POOL_TREASURY_ADDRESS,
+        xlmAmount
+      );
+
+      setTxHash(hash);
+      setTxStatus("success");
+
+      if (liveUser) {
+        await createPosition({
+          amount: depositAmount,
+          lockPeriod: lockPeriod === "Flexible" ? "Flexible" : `${lockPeriod.replace("M", "")} Months`,
+          apy
+        });
+      }
+    } catch (err: any) {
+      setTxStatus("failed");
+      console.error(err);
     }
   };
 
@@ -111,7 +118,7 @@ export default function LendPage() {
       <Sidebar />
 
       <main className="flex-1 pl-16 xl:pl-60 min-h-screen flex flex-col transition-all duration-300">
-        
+
         {/* Top Header Bar */}
         <header className="h-16 bg-white border-b border-borderCustom px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2">
@@ -132,7 +139,7 @@ export default function LendPage() {
 
         {/* Page Content */}
         <div className="p-6 md:p-8 space-y-8 max-w-7xl w-full mx-auto">
-          
+
           {/* Top Stats Row */}
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <StatCard
@@ -157,7 +164,7 @@ export default function LendPage() {
 
           {/* Deposit & Pool Stats Split */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* Deposit Panel (Left) */}
             <div className="lg:col-span-6 bg-white border border-cardBorder rounded-xl p-6 shadow-sm space-y-6">
               <div>
@@ -166,7 +173,7 @@ export default function LendPage() {
               </div>
 
               <form onSubmit={handleDepositSubmit} className="space-y-5">
-                
+
                 {/* Deposit Amount */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-text-secondary" htmlFor="deposit-amount-input">Amount to Supply ($)</label>
@@ -191,11 +198,10 @@ export default function LendPage() {
                         type="button"
                         key={period}
                         onClick={() => setLockPeriod(period)}
-                        className={`py-2.5 text-xs font-semibold rounded-xl border transition-all ${
-                          lockPeriod === period
-                            ? "bg-primary border-primary text-white shadow-sm"
-                            : "bg-white border-borderCustom text-text-secondary hover:bg-slate-50"
-                        }`}
+                        className={`py-2.5 text-xs font-semibold rounded-xl border transition-all ${lockPeriod === period
+                          ? "bg-primary border-primary text-white shadow-sm"
+                          : "bg-white border-borderCustom text-text-secondary hover:bg-slate-50"
+                          }`}
                       >
                         {period === "Flexible" ? "Flexible" : period}
                       </button>
@@ -218,7 +224,22 @@ export default function LendPage() {
                     <span className="font-mono text-text-primary font-bold text-success">${estimatedAnnualEarnings.toFixed(2)}</span>
                   </div>
                 </div>
-
+                {txStatus === "pending" && (
+                  <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-warning font-medium flex items-center gap-2">
+                    <span className="animate-spin">⏳</span> Depositing to pool on Stellar...
+                  </div>
+                )}
+                {txStatus === "success" && txHash && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-success font-medium">
+                    ✅ Deposit confirmed!{" "}
+                    <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" className="underline font-bold">View tx ↗</a>
+                  </div>
+                )}
+                {txStatus === "failed" && (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-danger font-medium">
+                    ❌ Deposit failed. Please try again.
+                  </div>
+                )}
                 {/* Action button */}
                 <button
                   type="submit"
@@ -256,7 +277,7 @@ export default function LendPage() {
                   label="Pool Utilization Rate"
                   subLabel={`${lendMarket.utilizationRate}%`}
                 />
-                
+
                 <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-text-secondary">
                   <div className="p-3 bg-slate-50 border border-borderCustom rounded-xl">
                     <p className="text-[10px] text-text-muted uppercase font-bold">Insurance Coverage</p>

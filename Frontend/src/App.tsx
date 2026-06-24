@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { WalletProvider } from '@/context/WalletContext';
+import { WalletProvider, useWallet } from '@/context/WalletContext';
 
 // Page imports
 import LandingPage from '@/app/page';
@@ -13,11 +13,11 @@ import LendPage from '@/app/lend/page';
 import SocialTrustPage from '@/app/social/page';
 import AnalyticsPage from '@/app/analytics/page';
 import AdminPanelPage from '@/app/admin/page';
-
+import EscrowActions from "@/components/EscrowActions";
 // Route Guard - Must be signed in
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -28,7 +28,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
+
   if (!isLoggedIn) {
     return <Navigate to="/auth/signin" replace />;
   }
@@ -59,6 +59,16 @@ function RequireKyc({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Route Guard - Must have wallet connected
+function RequireWallet({ children }: { children: React.ReactNode }) {
+  const { walletAddress } = useWallet();
+
+  if (!walletAddress) {
+    return <Navigate to="/" state={{ message: "Please connect your wallet first." }} replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -67,67 +77,91 @@ export default function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/signup" element={<SignupPage />} />
-            <Route path="/auth/signin" element={<SigninPage />} />
+            <Route
+              path="/auth/signup"
+              element={
+                <RequireWallet>
+                  <SignupPage />
+                </RequireWallet>
+              }
+            />
+            <Route
+              path="/auth/signin"
+              element={
+                <RequireWallet>
+                  <SigninPage />
+                </RequireWallet>
+              }
+            />
 
             {/* Protected Routes (Needs sign in) */}
-            <Route 
-              path="/kyc" 
+            <Route
+              path="/kyc"
               element={
                 <RequireAuth>
                   <KYCPage />
                 </RequireAuth>
-              } 
+              }
             />
 
             {/* KYC Gated Routes (Needs sign in + wallet linked) */}
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
-                <RequireKyc>
-                  <Dashboard />
-                </RequireKyc>
-              } 
+                <RequireWallet>
+                  <RequireKyc>
+                    <Dashboard />
+                  </RequireKyc>
+                </RequireWallet>
+              }
             />
-            <Route 
-              path="/borrow" 
+            <Route
+              path="/borrow"
               element={
                 <RequireKyc>
                   <BorrowPage />
                 </RequireKyc>
-              } 
+              }
             />
-            <Route 
-              path="/lend" 
+            <Route
+              path="/lend"
               element={
                 <RequireKyc>
                   <LendPage />
                 </RequireKyc>
-              } 
+              }
             />
-            <Route 
-              path="/social" 
+            <Route
+              path="/social"
               element={
                 <RequireKyc>
                   <SocialTrustPage />
                 </RequireKyc>
-              } 
+              }
             />
-            <Route 
-              path="/analytics" 
+            <Route
+              path="/analytics"
               element={
                 <RequireKyc>
                   <AnalyticsPage />
                 </RequireKyc>
-              } 
+              }
             />
-            <Route 
-              path="/admin" 
+            <Route
+              path="/escrow"
+              element={
+                <RequireKyc>
+                  <EscrowActions />
+                </RequireKyc>
+              }
+            />
+            <Route
+              path="/admin"
               element={
                 <RequireKyc>
                   <AdminPanelPage />
                 </RequireKyc>
-              } 
+              }
             />
 
             {/* Fallback redirect */}

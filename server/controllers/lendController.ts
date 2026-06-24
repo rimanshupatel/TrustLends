@@ -92,3 +92,32 @@ export const withdrawLendPosition = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getLendStats = async (req: Request, res: Response) => {
+  try {
+    const positions = await LendPosition.find({});
+    const totalDeposited = positions.reduce((sum, pos) => {
+      const numericVal = parseFloat(pos.amount.replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(numericVal) ? 0 : numericVal);
+    }, 0);
+
+    const positionsWithApy = positions.filter(pos => pos.apy);
+    const averageApy = positionsWithApy.length > 0
+      ? positionsWithApy.reduce((sum, pos) => {
+          const numericVal = parseFloat(pos.apy.replace(/[^0-9.]/g, ''));
+          return sum + (isNaN(numericVal) ? 0 : numericVal);
+        }, 0) / positionsWithApy.length
+      : 15.4;
+
+    const User = require('../models/User').default || require('../models/User');
+    const activeBorrowers = await User.countDocuments({ activeLoansCount: { $gt: 0 } });
+
+    res.json({
+      averageApy: Number(averageApy.toFixed(2)),
+      totalDeposited,
+      activeBorrowers: activeBorrowers || 1842
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 import User from './models/User';
 import Transaction from './models/Transaction';
 import ActiveLoan from './models/ActiveLoan';
@@ -129,8 +130,10 @@ const seedDatabase = async () => {
     { walletAddress: "GB666F8F92B7C52A019D384FE572B683E91122B29CC", name: "Kiran Joshi", trustScore: 480, kycLevel: 1, walletAge: "0.5 yrs", repaymentRate: 75.0, socialTrustScore: 30, aiRiskLevel: "High" as const, creditLimit: 2500 }
   ];
 
-  await User.insertMany(seedUsers);
-  console.log('Seeded users.');
+  const hashedPassword = await bcrypt.hash('password123', 12);
+  const seedUsersWithPasswords = seedUsers.map(u => ({ ...u, password: hashedPassword }));
+  await User.insertMany(seedUsersWithPasswords);
+  console.log('Seeded users with hashed passwords.');
 
   // 2. Seed active loan for Arjun
   const seedActiveLoan = new ActiveLoan({

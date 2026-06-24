@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import ActiveLoan from '../models/ActiveLoan';
 import LendPosition from '../models/LendPosition';
+import Transaction from '../models/Transaction';
 
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
@@ -18,12 +19,25 @@ export const getAdminStats = async (req: Request, res: Response) => {
     const activeLoans = dbActiveLoans + 4800; // baseline + db count
     const poolLiquidity = totalLendAmount + 2400000; // baseline + db count
 
+    // Dynamic counts
+    const activeBorrowers = await User.countDocuments({ activeLoansCount: { $gt: 0 } });
+    const totalLoans = await ActiveLoan.countDocuments();
+    
+    const transactions = await Transaction.find({ type: /repayment/i });
+    const totalRepaid = transactions.reduce((sum: number, tx: any) => {
+      const numericVal = parseFloat(tx.amount.replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(numericVal) ? 0 : numericVal);
+    }, 0);
+
     res.json({
       totalUsers,
       activeLoans,
       poolLiquidity,
       defaultRate: 0.8,
       flaggedAccounts: 2,
+      activeBorrowers: activeBorrowers || 1842, // fallback to baseline if 0
+      totalLoans: totalLoans || 48,
+      totalRepaid: totalRepaid || 15400,
       platformHealth: {
         poolUtilization: 78.4,
         insuranceCoverage: Math.round(poolLiquidity * 0.15),

@@ -11,7 +11,7 @@ interface SendTransactionProps {
 }
 
 export default function SendTransaction({ isOpen, onClose }: SendTransactionProps) {
-  const { walletAddress, xlmBalance, fetchBalance } = useWallet();
+  const { walletAddress, xlmBalance, fetchBalance, setError } = useWallet();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -30,6 +30,13 @@ export default function SendTransaction({ isOpen, onClose }: SendTransactionProp
     e.preventDefault();
     setErrorMessage("");
 
+    if (!walletAddress) {
+      setError("Please connect your wallet first.");
+      setErrorMessage("Please connect your wallet first.");
+      setStatus('failure');
+      return;
+    }
+
     // Validate recipient Stellar address format: starts with G, 56 characters
     const stellarAddressRegex = /^G[A-D2-7][A-Z2-7]{54}$/;
     if (!stellarAddressRegex.test(recipient)) {
@@ -46,8 +53,9 @@ export default function SendTransaction({ isOpen, onClose }: SendTransactionProp
       return;
     }
 
-    if (paymentAmount > currentBalance) {
-      setErrorMessage(`Insufficient balance. You only have ${currentBalance.toFixed(4)} XLM.`);
+    // Frontend pre-check: if (parseFloat(amount) > parseFloat(xlmBalance)) before calling sendXLMPayment
+    if (!xlmBalance || parseFloat(amount) > parseFloat(xlmBalance)) {
+      setErrorMessage("Not enough XLM to complete this transaction.");
       setStatus('failure');
       return;
     }
@@ -135,8 +143,7 @@ export default function SendTransaction({ isOpen, onClose }: SendTransactionProp
                   type="number"
                   step="0.0001"
                   required
-                  min="0.0001"
-                  max={currentBalance}
+
                   placeholder="0.0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
