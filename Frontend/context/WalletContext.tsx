@@ -96,11 +96,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       // 3. Request address
       const address = await getConnectedWalletAddress();
-      setWalletAddress(address);
-      setIsConnected(true);
 
       // Fetch or Create user profile in MongoDB Atlas
-      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/api` : 'http://localhost:5000/api');
+      const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:5001/api` : 'http://localhost:5001/api');
       const userRes = await fetch(`${apiBase}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,6 +106,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           walletAddress: address
         })
       });
+
+      if (!userRes.ok) {
+        throw new Error(`Server profile sync failed with status ${userRes.status}`);
+      }
+
       const userData = await userRes.json();
       const finalKyc = userData.kycLevel !== undefined ? userData.kycLevel : 1;
 
@@ -119,9 +122,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         // Also update local storage KYC level
         localStorage.setItem('trustlend_kyc_level', finalKyc.toString());
       }
+
+      // 4. Update React state only after successful sync and storage
+      setWalletAddress(address);
+      setIsConnected(true);
     } catch (err: any) {
       console.error("Wallet connection failed:", err);
       setError(err.message || "Failed to connect wallet.");
+      // Clear out state on failure to ensure consistency
+      setWalletAddress(null);
+      setIsConnected(false);
     } finally {
       setIsConnecting(false);
     }

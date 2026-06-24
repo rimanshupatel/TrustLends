@@ -14,8 +14,10 @@ import {
 import {
   getActiveLoan,
   requestLoan,
-  repayLoan
+  repayLoan,
+  disburseLoan
 } from './controllers/loanController';
+import {
   getLendPositions,
   createLendPosition,
   withdrawLendPosition,
@@ -51,6 +53,7 @@ router.post('/transactions', createTransaction);
 router.get('/loans/active/:walletAddress', getActiveLoan);
 router.post('/loans/request', requestLoan);
 router.post('/loans/repay', repayLoan);
+router.post('/loans/disburse', disburseLoan);
 
 // Lend Routes
 router.get('/lend/stats', getLendStats);

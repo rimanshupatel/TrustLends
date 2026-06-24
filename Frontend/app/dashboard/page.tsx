@@ -31,14 +31,16 @@ import KYCLevelBadge from "@/components/ui/KYCLevelBadge";
 import NotificationBell from "@/components/ui/NotificationBell";
 import SendTransaction from "@/components/ui/SendTransaction";
 import GuarantorLockCard, { LockedGuaranteeItem } from "@/components/guarantor/GuarantorLockCard";
-import { callReleaseFunds } from "@/lib/contract";
+import { callReleaseFunds, callRepayLoan } from "@/lib/contract";
+import { sendXLMPayment } from "@/lib/stellar";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
+
+const POOL_TREASURY = import.meta.env.VITE_POOL_TREASURY_ADDRESS || 'GDRNUHQGNSDT3FW6BLA7FRL4SXRSOUB2PV6HGPVSMML7FPLOECYWLDOA';
 
 import {
   userProfile,
   scoreBreakdown,
-  activeLoan as initialActiveLoan,
   recentTransactions,
   endorsements
 } from "@/lib/mock-data";
@@ -65,7 +67,7 @@ export default function Dashboard() {
     connectWallet
   } = useWallet();
 
-  const [activeLoanState, setActiveLoanState] = useState<any>(initialActiveLoan);
+  const [activeLoanState, setActiveLoanState] = useState<any>(null);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(2400);
   const [txs, setTxs] = useState(recentTransactions);
@@ -77,8 +79,13 @@ export default function Dashboard() {
   const { activeLoan: liveLoan, repayLoan: apiRepayLoan } = useActiveLoan(walletAddress);
 
   useEffect(() => {
-    if (liveLoan !== undefined) {
-      setActiveLoanState(liveLoan);
+    if (liveLoan !== undefined && liveLoan !== null) {
+      setActiveLoanState({
+        ...liveLoan,
+        loanId: liveLoan._id
+      });
+    } else if (liveLoan === null) {
+      setActiveLoanState(null); // clear mock data
     }
   }, [liveLoan]);
 
@@ -116,40 +123,42 @@ export default function Dashboard() {
 
     try {
       if (liveUser) {
-        const res = await apiRepayLoan({ amount: paymentAmount });
+        const xlmAmount = (paymentAmount / 7).toFixed(7);
 
-        // res is the full response: { loan: {...}, message: "..." }
-        // useApi already sets activeLoan to res.loan internally
-        // so just refresh and close
+        // 1. Stellar classic payment borrower → pool
+        const txHash = await sendXLMPayment(
+          walletAddress!,
+          POOL_TREASURY,
+          xlmAmount,
+          'repayment'
+        );
+
+        // 2. DB update
+        await apiRepayLoan({ amount: paymentAmount, txHash });
+
+        // 3. Contract update — use numeric loan counter not MongoDB _id
+        await callRepayLoan(
+          walletAddress!,
+          '1', // contract loan counter — track karo create_loan se
+          xlmAmount
+        );
 
         refreshTransactions();
         refreshUser();
         setIsPayModalOpen(false);
-        alert(`✅ Repayment of ₹${paymentAmount.toLocaleString()} completed!`);
+        alert(`✅ Repayment done! TX: ${txHash}`);
 
       } else {
-        // Fallback mock when no live user
+        // Mock fallback
         const remaining = Math.max((activeLoanState?.remaining || 0) - paymentAmount, 0);
         const repaid = (activeLoanState?.repaid || 0) + paymentAmount;
         const progress = Math.round((repaid / (activeLoanState?.amount || 1)) * 100);
-
         setActiveLoanState({ ...activeLoanState, repaid, remaining, progress });
-
-        const newTx = {
-          id: `TX-${Math.floor(1000 + Math.random() * 9000)}`,
-          type: "Loan repayment (Simulated)",
-          amount: `₹${paymentAmount.toLocaleString()}`,
-          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          status: "Completed" as const,
-          impact: "+3 pts",
-        };
-
-        setTxs([newTx, ...txs]);
         setIsPayModalOpen(false);
         alert(`✅ Repayment of ₹${paymentAmount.toLocaleString()} completed!`);
       }
     } catch (err: any) {
-      alert("Repayment failed: " + (err.message || "Unknown error"));
+      alert("Repayment failed: " + err.message);
     }
   };
 
@@ -162,7 +171,7 @@ export default function Dashboard() {
   const displayTrustScore = liveUser ? liveUser.trustScore : userProfile.trustScore;
   const displayKycLevel = liveUser ? liveUser.kycLevel : userProfile.kycLevel;
   const displayCreditLimit = liveUser ? liveUser.creditLimit : userProfile.creditLimit;
-  const displayActiveDebt = liveUser ? liveUser.totalActiveDebt : userProfile.totalActiveDebt;
+  const displayActiveDebt = liveUser?.totalActiveDebt ?? 0;
   const displayNextPaymentAmount = liveUser ? liveUser.nextPaymentAmount : userProfile.nextPaymentAmount;
   const displayNextPaymentDate = liveUser ? liveUser.nextPaymentDate : userProfile.nextPaymentDate;
 

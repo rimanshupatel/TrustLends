@@ -48,7 +48,18 @@ export const createOrUpdateUser = async (req: Request, res: Response) => {
         activeLoansCount: 0,
         totalActiveDebt: 0,
         nextPaymentDate: "",
-        nextPaymentAmount: 0
+        nextPaymentAmount: 0,
+
+        totalLoansRepaid: 0,
+        totalLoanDefaults: 0,
+        latePaymentsCount: 0,
+        endorsementsReceived: 0,
+        guarantorsCount: 0,
+        daoMemberships: 0,
+        totalTransactions: 0,
+        monthlySavingsRate: 0,
+        lastActiveDate: new Date(),
+        earlyRepayments: 0
       });
       await user.save();
     } else {
@@ -106,7 +117,7 @@ export const updateKyc = async (req: Request, res: Response) => {
   try {
     const { walletAddress } = req.params;
     const { kycLevel } = req.body;
-    
+
     // Limits and score impacts per KYC Level
     let creditLimit = 2000;
     let trustScoreImpact = 0;

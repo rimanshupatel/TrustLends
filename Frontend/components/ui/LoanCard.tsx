@@ -7,7 +7,8 @@ interface LoanCardProps {
 }
 
 export default function LoanCard({ loan, onPay }: LoanCardProps) {
-  const isCompleted = loan.remaining === 0;
+  console.log("loan data:", loan);
+  const isCompleted = !loan || loan.remaining <= 0;
 
   return (
     <div className="bg-white border border-cardBorder rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200">
@@ -15,11 +16,10 @@ export default function LoanCard({ loan, onPay }: LoanCardProps) {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-text-muted uppercase tracking-wider font-mono">Loan {loan.id}</span>
-            <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full ${
-              loan.status === "On Track"
-                ? "bg-emerald-50 text-success border-emerald-100"
-                : "bg-amber-50 text-warning border-amber-100"
-            }`}>
+            <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full ${loan.status === "On Track"
+              ? "bg-emerald-50 text-success border-emerald-100"
+              : "bg-amber-50 text-warning border-amber-100"
+              }`}>
               {loan.status}
             </span>
           </div>

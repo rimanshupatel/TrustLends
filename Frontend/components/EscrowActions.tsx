@@ -67,7 +67,7 @@ export default function EscrowActions() {
 
   const [activeTab, setActiveTab] = useState<"create" | "release" | "refund">("create");
 
-  const [receiver, setReceiver] = useState("GDGSHBO7VF2E6ZUB2DLGOBBRQUNNLL3V6M7JQEUUT6SEJOTEPAIGLMMX");
+  const [receiver, setReceiver] = useState("GDRNUHQGNSDT3FW6BLA7FRL4SXRSOUB2PV6HGPVSMML7FPLOECYWLDOA");
 
   const [amount, setAmount] = useState("10");
   const [escrowId, setEscrowId] = useState("");

@@ -27,10 +27,12 @@ import { useWallet } from "@/context/WalletContext";
 import { useUser, useLendPositions } from "@/hooks/useApi";
 import { callCreateEscrow } from "@/lib/contract";
 import { sendXLMPayment } from "@/lib/stellar";
+import { usePoolStats } from "@/lib/usePoolStats";
 export default function LendPage() {
   const { walletAddress } = useWallet();
   const { user: liveUser } = useUser(walletAddress);
   const { positions: livePositions, createPosition, withdrawPosition } = useLendPositions(walletAddress);
+  const { poolBalance, averageApy, activeBorrowers, loading: statsLoading } = usePoolStats();
   const [txStatus, setTxStatus] = useState<"idle" | "pending" | "success" | "failed">("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState(2500);
@@ -144,19 +146,19 @@ export default function LendPage() {
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <StatCard
               title="Total Pool Liquidity"
-              value={`$${lendMarket.totalPoolLiquidity.toLocaleString()}`}
+              value={statsLoading ? "Loading..." : poolBalance || "0.0000 XLM"}
               subtext="Accumulated Stellar assets"
               icon={Coins}
             />
             <StatCard
               title="Average Platform APY"
-              value={`${lendMarket.averageApy}%`}
+              value={statsLoading ? "Loading..." : `${averageApy}%`}
               subtext="Aggregated across risk tiers"
               icon={TrendingUp}
             />
             <StatCard
               title="Active Borrowers"
-              value={lendMarket.activeBorrowers}
+              value={statsLoading ? "Loading..." : activeBorrowers ?? 0}
               subtext="98.2% healthy repayment record"
               icon={Users}
             />

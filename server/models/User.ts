@@ -16,6 +16,17 @@ export interface IUser extends Document {
   totalActiveDebt: number;
   nextPaymentDate: string;
   nextPaymentAmount: number;
+  // New fields for algorithm
+  totalLoansRepaid: number;
+  totalLoanDefaults: number;
+  latePaymentsCount: number;
+  endorsementsReceived: number;
+  guarantorsCount: number;
+  daoMemberships: number;
+  totalTransactions: number;
+  monthlySavingsRate: number;
+  lastActiveDate: Date;
+  earlyRepayments: number;
 }
 
 const UserSchema: Schema = new Schema({
@@ -33,7 +44,17 @@ const UserSchema: Schema = new Schema({
   activeLoansCount: { type: Number, default: 0 },
   totalActiveDebt: { type: Number, default: 0 },
   nextPaymentDate: { type: String, default: "" },
-  nextPaymentAmount: { type: Number, default: 0 }
+  nextPaymentAmount: { type: Number, default: 0 },
+  totalLoansRepaid: { type: Number, default: 0 },
+  totalLoanDefaults: { type: Number, default: 0 },
+  latePaymentsCount: { type: Number, default: 0 },
+  endorsementsReceived: { type: Number, default: 0 },
+  guarantorsCount: { type: Number, default: 0 },
+  daoMemberships: { type: Number, default: 0 },
+  totalTransactions: { type: Number, default: 0 },
+  monthlySavingsRate: { type: Number, default: 0 },
+  lastActiveDate: { type: Date, default: Date.now },
+  earlyRepayments: { type: Number, default: 0 }
 }, {
   timestamps: true
 });

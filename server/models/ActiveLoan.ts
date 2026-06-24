@@ -11,6 +11,7 @@ export interface IActiveLoan extends Document {
   interestRate: number;
   dueDate: string;
   status: 'On Track' | 'Delayed' | 'Grace Period';
+  txHash?: string;
 }
 
 const ActiveLoanSchema: Schema = new Schema({
@@ -23,7 +24,8 @@ const ActiveLoanSchema: Schema = new Schema({
   purpose: { type: String, required: true },
   interestRate: { type: Number, required: true },
   dueDate: { type: String, required: true },
-  status: { type: String, enum: ['On Track', 'Delayed', 'Grace Period'], default: 'On Track' }
+  status: { type: String, enum: ['On Track', 'Delayed', 'Grace Period'], default: 'On Track' },
+  txHash: { type: String }
 }, {
   timestamps: true
 });

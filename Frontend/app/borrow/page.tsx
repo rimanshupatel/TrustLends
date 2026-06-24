@@ -106,27 +106,30 @@ export default function BorrowPage() {
 
     setTxStatus("pending");
 
+    const POOL_TREASURY = import.meta.env.VITE_POOL_TREASURY_ADDRESS || 'GDRNUHQGNSDT3FW6BLA7FRL4SXRSOUB2PV6HGPVSMML7FPLOECYWLDOA';
+
     try {
       const xlmAmount = (loanAmount / 7).toFixed(7);
 
       // Step 1: Borrower sends small collateral/fee to pool as loan request signal
-      const { sendXLMPayment } = await import("@/lib/stellar");
+      const processingFeeXLM = (parseFloat(xlmAmount) * 0.01).toFixed(7);
       const paymentHash = await sendXLMPayment(
-        walletAddress,                                          // from borrower
-        import.meta.env.VITE_POOL_TREASURY_ADDRESS,            // to pool
-        (parseFloat(xlmAmount) * 0.01).toFixed(7),            // 1% processing fee only
-        `loan-request-${purpose}`
+        walletAddress,
+        POOL_TREASURY,
+        processingFeeXLM,
+        'loan-fee'
       );
 
       // Step 2: Register escrow on chain
       const escrowHash = await callCreateEscrow(
         walletAddress,
-        import.meta.env.VITE_POOL_TREASURY_ADDRESS,
+        POOL_TREASURY,
         xlmAmount
       );
 
       setTxHash(escrowHash);
       setTxStatus("success");
+      alert(`✅ Loan fee payment successful!\nFee TX: ${paymentHash}\nEscrow Created: ${escrowHash}`);
 
       // Step 3: Save to DB
       if (liveUser) {

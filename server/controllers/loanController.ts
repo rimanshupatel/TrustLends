@@ -84,6 +84,26 @@ export const requestLoan = async (req: Request, res: Response) => {
 
     await disbursementTx.save();
 
+    try {
+      const { sendXLMPayment } = require('../stellar');
+      const xlmAmount = (Number(amount) / 7).toFixed(7);
+      const txHash = await sendXLMPayment(walletAddress, xlmAmount, `disburse-${loanId}`);
+      newLoan.txHash = txHash;
+      await newLoan.save();
+
+      // Deduct from pool balance in DB
+      const LendPosition = require('../models/LendPosition').default || require('../models/LendPosition');
+      const position = await LendPosition.findOne({});
+      if (position) {
+        const currentVal = parseFloat(position.amount.replace(/[^0-9.]/g, ''));
+        const newVal = Math.max(currentVal - Number(amount), 0);
+        position.amount = `$${newVal.toLocaleString()}`;
+        await position.save();
+      }
+    } catch (blockchainErr: any) {
+      console.error("Blockchain disburse failed on request:", blockchainErr);
+    }
+
     res.json(newLoan);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -160,6 +180,64 @@ export const repayLoan = async (req: Request, res: Response) => {
       loan: isFullyRepaid ? null : loan,
       user
     });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const disburseLoan = async (req: Request, res: Response) => {
+  try {
+    const { walletAddress, amount, loanId } = req.body;
+    if (!walletAddress || !amount || !loanId) {
+      return res.status(400).json({ error: 'walletAddress, amount, and loanId are required' });
+    }
+
+    const loan = await ActiveLoan.findOne({ id: loanId });
+    if (!loan) {
+      // Try finding by Mongo _id in case LN-xxx string is not stored as id
+      const dbLoanByMongoId = await ActiveLoan.findById(loanId);
+      if (dbLoanByMongoId) {
+        const { sendXLMPayment } = require('../stellar');
+        const xlmAmount = (Number(amount) / 7).toFixed(7);
+        const txHash = await sendXLMPayment(walletAddress, xlmAmount, `disburse-${loanId}`);
+
+        // Deduct from pool balance in DB
+        const LendPosition = require('../models/LendPosition').default || require('../models/LendPosition');
+        const position = await LendPosition.findOne({});
+        if (position) {
+          const currentVal = parseFloat(position.amount.replace(/[^0-9.]/g, ''));
+          const newVal = Math.max(currentVal - Number(amount), 0);
+          position.amount = `$${newVal.toLocaleString()}`;
+          await position.save();
+        }
+
+        dbLoanByMongoId.txHash = txHash;
+        await dbLoanByMongoId.save();
+
+        return res.json({ success: true, txHash });
+      }
+      return res.status(404).json({ error: 'Loan record not found' });
+    }
+
+    // Blockchain payment
+    const { sendXLMPayment } = require('../stellar');
+    const xlmAmount = (Number(amount) / 7).toFixed(7);
+    const txHash = await sendXLMPayment(walletAddress, xlmAmount, `disburse-${loanId}`);
+
+    // Deduct from pool balance in DB
+    const LendPosition = require('../models/LendPosition').default || require('../models/LendPosition');
+    const position = await LendPosition.findOne({});
+    if (position) {
+      const currentVal = parseFloat(position.amount.replace(/[^0-9.]/g, ''));
+      const newVal = Math.max(currentVal - Number(amount), 0);
+      position.amount = `$${newVal.toLocaleString()}`;
+      await position.save();
+    }
+
+    loan.txHash = txHash;
+    await loan.save();
+
+    res.json({ success: true, txHash });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

@@ -9,12 +9,12 @@ export function usePoolStats() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const treasuryAddress = import.meta.env.VITE_POOL_TREASURY_ADDRESS || 'GDGSHBO7VF2E6ZUB2DLGOBBRQUNNLL3V6M7JQEUUT6SEJOTEPAIGLMMX';
-    
+    const treasuryAddress = import.meta.env.VITE_POOL_TREASURY_ADDRESS || 'GDRNUHQGNSDT3FW6BLA7FRL4SXRSOUB2PV6HGPVSMML7FPLOECYWLDOA';
+
     // Dynamically calculate the API base URL based on environment or current host
-    const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' 
-      ? `http://${window.location.hostname}:5000/api` 
-      : 'http://localhost:5000/api');
+    const apiBase = import.meta.env.VITE_API_URL || (typeof window !== 'undefined'
+      ? `http://${window.location.hostname}:5001/api`
+      : 'http://localhost:5001/api');
 
     const fetchData = async () => {
       try {
@@ -22,7 +22,7 @@ export function usePoolStats() {
         const account = await horizonServer.loadAccount(treasuryAddress);
         const nativeBalanceObj = account.balances.find(b => b.asset_type === 'native');
         const balance = nativeBalanceObj ? parseFloat(nativeBalanceObj.balance) : 0;
-        
+
         // Display formatted as "X,XXX.XXXX XLM"
         const formattedBalance = balance.toLocaleString('en-US', {
           minimumFractionDigits: 4,
